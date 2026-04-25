@@ -8,8 +8,19 @@ for extracurricular activities at Mergington High School.
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr, Field
 import os
 from pathlib import Path
+
+# Pydantic models
+class Activity(BaseModel):
+    description: str
+    schedule: str
+    max_participants: int = Field(ge=0)
+    participants: list[str]
+
+class SignupRequest(BaseModel):
+    email: EmailStr
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -53,7 +64,7 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
+def signup_for_activity(activity_name: str, signup: SignupRequest):
     """Sign up a student for an activity"""
     # Validate activity exists
     if activity_name not in activities:
@@ -62,6 +73,14 @@ def signup_for_activity(activity_name: str, email: str):
     # Get the specific activity
     activity = activities[activity_name]
 
+    # Check if activity is at capacity
+    if len(activity["participants"]) >= activity["max_participants"]:
+        raise HTTPException(status_code=400, detail="Activity is at maximum capacity")
+
+    # Check if email is already signed up
+    if signup.email in activity["participants"]:
+        raise HTTPException(status_code=400, detail="Email already signed up for this activity")
+
     # Add student
-    activity["participants"].append(email)
-    return {"message": f"Signed up {email} for {activity_name}"}
+    activity["participants"].append(signup.email)
+    return {"message": f"Signed up {signup.email} for {activity_name}"}
